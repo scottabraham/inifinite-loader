@@ -1,30 +1,82 @@
-# React + TypeScript + Vite
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+// Custom hook using IntersectionObserver for infinite scrolling
+const useInfiniteScroll = (loadMoreItems: () => void) => {
+  const observer = useRef<IntersectionObserver>();
+  const anchorRef = useRef<HTMLDivElement | null>(null);
 
-Currently, two official plugins are available:
+  useEffect(() => {
+    observer.current = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting) {
+          loadMoreItems();
+        }
+      },
+      { threshold: 1.0 }
+    );
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+    const currentObserver = observer.current;
+    const currentAnchor = anchorRef.current;
+    if (currentAnchor) {
+      currentObserver.observe(currentAnchor);
+    }
 
-## Expanding the ESLint configuration
+    return () => {
+      if (currentAnchor) {
+        currentObserver.unobserve(currentAnchor);
+      }
+    };
+  }, [loadMoreItems]);
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+  return anchorRef;
+};
 
-- Configure the top-level `parserOptions` property like this:
+// Component for rendering the list of items
+const TableComponent: React.FC<{ items: string[] }> = ({ items }) => {
+  return (
+    <table>
+      <tbody>
+        {items.map((item, index) => (
+          <tr key={index}>
+            <td>{item}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+};
 
-```js
-export default {
-  // other rules...
-  parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'module',
-    project: ['./tsconfig.json', './tsconfig.node.json'],
-    tsconfigRootDir: __dirname,
-  },
-}
-```
+// Component responsible for managing data fetching and state
+const QueryComponent: React.FC = () => {
+  const [items, setItems] = useState<string[]>(Array.from({ length: 20 }, (_, i) => `Item ${i + 1}`));
 
-- Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
-- Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
+  const loadMoreItems = useCallback(() => {
+    setItems(prevItems => [
+      ...prevItems,
+      ...Array.from({ length: 20 }, (_, i) => `Item ${prevItems.length + i + 1}`),
+    ]);
+  }, [setItems]);
+
+  const anchorRef = useInfiniteScroll(loadMoreItems);
+
+  return (
+    <div style={{ overflowY: 'auto', height: '400px' }}>
+      <TableComponent items={items} />
+      {/* Anchor element for IntersectionObserver */}
+      <div ref={anchorRef} style={{ height: '1px' }} />
+    </div>
+  );
+};
+
+// Main App component
+const App: React.FC = () => {
+  return (
+    <div className="App">
+      <h1>Infinite Scroll with IntersectionObserver</h1>
+      <QueryComponent />
+    </div>
+  );
+};
+
+export default App;
